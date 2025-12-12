@@ -6,12 +6,12 @@ echo "🚀 Instalando Genesis Admin Agent"
 # ------------------------------------------------------------
 # Validar token
 # ------------------------------------------------------------
-if [ -z "$GITHUB_TOKEN" ]; then
-  echo "❌ ERROR: Debes definir GITHUB_TOKEN"
-  echo "Ejemplo:"
-  echo "GITHUB_TOKEN=ghp_xxx bash install.sh"
-  exit 1
-fi
+# if [ -z "$GITHUB_TOKEN" ]; then
+#   echo "❌ ERROR: Debes definir GITHUB_TOKEN"
+#   echo "Ejemplo:"
+#   echo "GITHUB_TOKEN=ghp_xxx bash install.sh"
+#   exit 1
+# fi
 
 BASE=/opt/genesis-admin-agent
 
