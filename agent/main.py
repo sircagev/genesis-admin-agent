@@ -51,6 +51,7 @@ def run_command(cmd: list, timeout: int = 20) -> str:
             stderr=subprocess.STDOUT,
             timeout=timeout,
             text=True,
+            check=False,
         )
         return res.stdout.strip()
     except subprocess.TimeoutExpired:
@@ -132,3 +133,84 @@ def service_logs(service: str, lines: Optional[int] = Query(None, ge=1, le=2000)
     n = lines or LOG_DEFAULT_LINES
     raw = run_command(["journalctl", "-u", service, "-n", str(n), "--no-pager"])
     return {"service": service, "lines": n, "logs": raw}
+
+
+@app.get("/service/{service}/databases", dependencies=[Depends(get_token_header)])
+def list_databases(service: str):
+    assert_service_allowed(service)
+    
+    try:
+        owner = service.split("odoo-server-")[1]
+    except Exception:
+        owner = None
+        
+    if not owner:
+        return {"service": service, "databases": [], "error": "No se pudo extraer owner del nombre del servicio"}
+    
+    sql = f"""
+        SELECT datname
+        FROM pg_database
+        WHERE datistemplate = false
+        AND pg_get_userbyid(datdba) = '{owner}';
+    """
+    
+    raw = run_command([
+        "sudo", "-u", "postgres",
+        "psql", "-Atc",
+        sql
+    ])
+
+    dbs = [x for x in raw.split("\n") if x.strip()]
+    
+    return {
+        "service": service, 
+        "databases": dbs,
+        "owner": owner,
+    }
+
+
+@app.get("/service/{service}/modules/{db}", dependencies=[Depends(get_token_header)])
+def list_modules(service: str, db: str):
+    assert_service_allowed(service)
+
+    raw = run_command([
+        "sudo", "-u", "postgres",
+        "psql", "-d", db, "-Atc",
+        "SELECT name, state FROM ir_module_module WHERE state='installed';"
+    ])
+
+    modules = []
+    for line in raw.split("\n"):
+        if not line.strip():
+            continue
+        name, state = line.split("|")
+        modules.append({
+            "name": name, 
+            "state": state
+        })
+
+    return {
+        "service": service, 
+        "db": db, 
+        "modules": modules
+    }
+    
+    
+@app.post("/service/{service}/git/pull", dependencies=[Depends(get_token_header)])
+def git_pull(service: str):
+
+    # Extraer owner desde el nombre del servicio
+    try:
+        owner = service.replace("odoo-server-", "")
+    except:
+        raise HTTPException(status_code=400, detail="Formato de servicio inválido")
+
+    repo_path = f"/opt/{owner}/odoo-server/modulosFE17"
+
+    output = run_command(["git", "-C", repo_path, "pull"])
+
+    return {
+        "service": service,
+        "repo": repo_path,
+        "output": output,
+    }
