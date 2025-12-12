@@ -9,7 +9,7 @@ CFG_DIR=/opt/genesispos
 mkdir -p $BASE $CFG_DIR
 cd $BASE
 
-git clone https://github.com/GENESISPOS/genesis-admin-agent.git .
+git clone https://github.com/sircagev/genesis-admin-agent.git .
 
 python3 -m venv venv
 source venv/bin/activate
