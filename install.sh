@@ -28,5 +28,28 @@ systemctl daemon-reload
 systemctl enable admin-agent
 systemctl restart admin-agent
 
+# ------------------------------------------------------------
+# Configurar UFW (permitir puerto 8019/tcp)
+# ------------------------------------------------------------
+if command -v ufw >/dev/null 2>&1; then
+    echo "🔐 Configurando firewall (ufw)..."
+
+    # Asegurar SSH (para no bloquear acceso remoto)
+    # ufw allow ssh >/dev/null 2>&1 || true
+
+    # Permitir puerto del agente
+    ufw allow 8019/tcp >/dev/null 2>&1 || true
+
+    # Habilitar ufw solo si no está activo
+    # if ufw status | grep -q "Status: inactive"; then
+    #     ufw --force enable
+    # fi
+
+    echo "📡 Reglas activas de UFW:"
+    ufw status
+else
+    echo "⚠️ ufw no está instalado, se omite configuración de firewall"
+fi
+
 echo "✅ Agente instalado"
 echo "🔐 TOKEN: $TOKEN"
