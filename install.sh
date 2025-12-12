@@ -38,7 +38,7 @@ if command -v ufw >/dev/null 2>&1; then
     # ufw allow ssh >/dev/null 2>&1 || true
 
     # Permitir puerto del agente
-    ufw allow 8019/tcp >/dev/null 2>&1 || true
+    ufw allow 8010/tcp >/dev/null 2>&1 || true
 
     # Habilitar ufw solo si no está activo
     # if ufw status | grep -q "Status: inactive"; then
