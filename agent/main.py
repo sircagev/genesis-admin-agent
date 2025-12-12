@@ -5,7 +5,7 @@ import yaml
 from fastapi import FastAPI, Header, HTTPException, Query, Depends
 from pydantic import BaseModel
 
-CONFIG_PATH = "/opt/genesispos/config.yaml"
+CONFIG_PATH = "/opt/genesis-admin-agent/config/config.yaml"
 
 with open(CONFIG_PATH, "r") as f:
     CONFIG = yaml.safe_load(f)
