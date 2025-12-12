@@ -3,9 +3,6 @@ set -e
 
 echo "🚀 Instalando Genesis Admin Agent"
 
-apt update
-apt install -y python3 python3-venv git
-
 BASE=/opt/genesis-admin-agent
 CFG_DIR=/opt/genesispos
 
