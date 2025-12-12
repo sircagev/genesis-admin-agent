@@ -3,12 +3,23 @@ set -e
 
 echo "🚀 Instalando Genesis Admin Agent"
 
+# ------------------------------------------------------------
+# Validar token
+# ------------------------------------------------------------
+if [ -z "$GITHUB_TOKEN" ]; then
+  echo "❌ ERROR: Debes definir GITHUB_TOKEN"
+  echo "Ejemplo:"
+  echo "GITHUB_TOKEN=ghp_xxx bash install.sh"
+  exit 1
+fi
+
 BASE=/opt/genesis-admin-agent
 
 mkdir -p $BASE
 cd $BASE
 
-git clone https://github.com/sircagev/genesis-admin-agent.git .
+echo "📦 Clonando repositorio privado..."
+git clone https://$GITHUB_TOKEN@github.com/sircagev/genesis-admin-agent.git .
 
 python3 -m venv venv
 source venv/bin/activate
@@ -39,5 +50,10 @@ else
     echo "⚠️ ufw no está instalado, se omite configuración de firewall"
 fi
 
-echo "✅ Agente instalado"
-echo "🔐 TOKEN: $TOKEN"
+unset GITHUB_TOKEN
+
+echo "✅ Agente instalado correctamente"
+echo "🔐 TOKEN DEL AGENTE (guárdalo en Admin Center):"
+echo "----------------------------------------------"
+echo "$TOKEN"
+echo "----------------------------------------------"

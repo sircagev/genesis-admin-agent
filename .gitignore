@@ -1,2 +1,7 @@
 # Config real (con token)
 config/config.yaml
+
+# Python
+__pycache__/
+*.pyc
+venv/
