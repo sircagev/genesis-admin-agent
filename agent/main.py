@@ -494,6 +494,7 @@ def provision_create(payload: ProvisionCreateRequest):
 
     cmd = [
         "sudo",
+        "-E",
         script_path,
         owner,
         str(payload.main_port),
@@ -528,3 +529,5 @@ def provision_create(payload: ProvisionCreateRequest):
         "service_name": service_name,
         "result": result,
     }
+    
+    
