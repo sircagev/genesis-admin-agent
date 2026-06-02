@@ -132,6 +132,35 @@ def get_port_usage(port: int) -> dict:
         "available": output.strip() == "",
         "detail": output.strip(),
     }
+    
+    
+def get_owner_from_service(service_name: str) -> str:
+    prefix = "odoo-server-"
+
+    if not service_name or not service_name.startswith(prefix):
+        raise HTTPException(
+            status_code=400,
+            detail="El servicio debe iniciar con odoo-server-",
+        )
+
+    owner = service_name.replace(prefix, "", 1).strip()
+
+    if not owner:
+        raise HTTPException(
+            status_code=400,
+            detail="No se pudo extraer owner del nombre del servicio",
+        )
+
+    # Seguridad básica: solo letras, números y guiones
+    safe_owner = "".join(c for c in owner if c.isalnum() or c == "-")
+
+    if safe_owner != owner:
+        raise HTTPException(
+            status_code=400,
+            detail="El owner contiene caracteres no permitidos",
+        )
+
+    return owner
 
 
 # ============================================================
@@ -165,6 +194,22 @@ class ProvisionPrepareRequest(BaseModel):
     create_nginx: bool = True
     create_ssl: bool = True
     start_service: bool = True
+
+
+class ProvisionCreateRequest(BaseModel):
+    service_name: str
+    version_odoo: int
+    environment: str
+    main_port: int
+    longpolling_port: int
+    workers: int
+    max_cron_threads: int
+    domain: str
+    url: str
+    create_nginx: bool = True
+    create_ssl: bool = True
+    start_service: bool = True
+    dry_run: bool = True
 
 
 # ============================================================
@@ -411,4 +456,75 @@ def provision_suggest_ports(
         "message": "No se encontró un par de puertos disponible.",
         "start": start,
         "end": end,
+    }
+
+
+@app.post("/provision/create", dependencies=[Depends(get_token_header)])
+def provision_create(payload: ProvisionCreateRequest):
+    service_name = payload.service_name
+    assert_service_allowed(service_name)
+
+    owner = get_owner_from_service(service_name)
+
+    if systemd_service_exists(service_name):
+        return {
+            "success": False,
+            "message": f"El servicio {service_name} ya existe.",
+        }
+
+    main_port_usage = get_port_usage(payload.main_port)
+    longpolling_port_usage = get_port_usage(payload.longpolling_port)
+
+    if not main_port_usage["available"] or not longpolling_port_usage["available"]:
+        return {
+            "success": False,
+            "message": "Uno o más puertos no están disponibles.",
+            "main_port_usage": main_port_usage,
+            "longpolling_port_usage": longpolling_port_usage,
+        }
+
+    script_path = "/opt/genesis-admin-agent/scripts/create_instance.sh"
+    
+    if not Path(script_path).exists():
+        return {
+            "success": False,
+            "message": "No existe el script de creación de instancia.",
+            "script_path": script_path,
+        }
+
+    cmd = [
+        "sudo",
+        script_path,
+        owner,
+        str(payload.main_port),
+        payload.domain,
+    ]
+
+    if payload.dry_run:
+        return {
+            "success": True,
+            "dry_run": True,
+            "message": "Dry-run correcto. No se ejecutó el script.",
+            "owner": owner,
+            "service_name": service_name,
+            "cmd": " ".join(cmd),
+            "domain": payload.domain,
+            "url": payload.url,
+        }
+
+    result = run_command_checked(cmd, timeout=1800)
+
+    if not result["success"]:
+        return {
+            "success": False,
+            "message": "Falló la creación de la instancia.",
+            "result": result,
+        }
+
+    return {
+        "success": True,
+        "message": "Instancia creada correctamente.",
+        "owner": owner,
+        "service_name": service_name,
+        "result": result,
     }
