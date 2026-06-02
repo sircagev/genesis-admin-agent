@@ -20,7 +20,7 @@ if [ -z "$GITHUB_TOKEN" ]; then
     exit 1
 fi
 
-REPO_MODULOS="https://github.com/evopos30/modulosFE17.git"
+REPO_MODULOS="https://${GITHUB_TOKEN}@github.com/evopos30/modulosFE17.git"
 
 CREADOS=()
 
@@ -71,8 +71,7 @@ rm -rf .git
 rm -rf .github
 
 echo "Clonando módulos personalizados desde $REPO_MODULOS"
-git -c http.extraHeader="Authorization: Bearer ${GITHUB_TOKEN}" \
-    clone "$REPO_MODULOS"
+git clone "$REPO_MODULOS" --depth 1 --branch main
 CREADOS+=("$BASE_DIR/odoo-server/modulosFE17")
 
 sudo chown -R odoo:odoo "/opt/$1/odoo-server"
