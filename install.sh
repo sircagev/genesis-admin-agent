@@ -15,7 +15,7 @@ MODULES_GITHUB_TOKEN="${1:-}"
 if [ -z "$MODULES_GITHUB_TOKEN" ]; then
     echo "⚠️ No se recibió token GitHub para módulos privados."
     echo "Ejemplo:"
-    echo 'curl -sSL https://raw.githubusercontent.com/sircagev/genesis-admin-agent/main/install.sh | sudo bash -s -- "ghp_TU_TOKEN_REAL"'
+    echo 'curl -sSL https://raw.githubusercontent.com/sircagev/genesis-admin-agent/main/install.sh | sudo bash -s -- "${MODULES_GITHUB_TOKEN}"'
 fi
 
 # ------------------------------------------------------------
