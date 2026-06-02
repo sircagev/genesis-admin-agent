@@ -1,4 +1,6 @@
 import subprocess
+import socket
+from pathlib import Path
 from typing import List, Optional
 
 import yaml
@@ -57,6 +59,54 @@ def run_command(cmd: list, timeout: int = 20) -> str:
     except subprocess.TimeoutExpired:
         raise HTTPException(status_code=504, detail="Timeout ejecutando comando")
 
+ 
+def run_command_checked(cmd: list, timeout: int = 30) -> dict:
+    try:
+        res = subprocess.run(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            timeout=timeout,
+            text=True,
+            check=False,
+        )
+        return {
+            "success": res.returncode == 0,
+            "returncode": res.returncode,
+            "output": res.stdout.strip(),
+            "cmd": " ".join(cmd),
+        }
+    except subprocess.TimeoutExpired:
+        raise HTTPException(status_code=504, detail="Timeout ejecutando comando")
+    
+def is_port_available(port: int) -> bool:
+    if not port:
+        return False
+
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.settimeout(1)
+        return sock.connect_ex(("127.0.0.1", int(port))) != 0
+
+
+def systemd_service_exists(service_name: str) -> bool:
+    result = subprocess.run(
+        ["systemctl", "status", service_name, "--no-pager"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        check=False,
+    )
+
+    output = result.stdout or ""
+
+    if result.returncode == 0:
+        return True
+
+    if "Loaded: loaded" in output:
+        return True
+
+    return False
+
 
 def get_token_header(x_admin_token: str = Header(..., alias="X-Admin-Token")):
     check_token(x_admin_token)
@@ -78,6 +128,21 @@ class ServiceStatusResponse(BaseModel):
     active: bool
     info: str
     raw_output: str
+    
+class ProvisionPrepareRequest(BaseModel):
+    service_name: str
+    version_odoo: int
+    environment: str
+    main_port: int
+    longpolling_port: int
+    workers: int
+    max_cron_threads: int
+    domain: str
+    url: str
+    prepare_certbot: bool = True
+    create_nginx: bool = True
+    create_ssl: bool = True
+    start_service: bool = True
 
 
 # ============================================================
@@ -213,4 +278,82 @@ def git_pull(service: str):
         "service": service,
         "repo": repo_path,
         "output": output,
+    }
+
+
+@app.post("/provision/prepare", dependencies=[Depends(get_token_header)])
+def provision_prepare(payload: ProvisionPrepareRequest):
+    service_name = payload.service_name
+
+    assert_service_allowed(service_name)
+
+    checks = {}
+
+    # 1. Nombre permitido
+    checks["service_name_allowed"] = True
+
+    # 2. Servicio systemd no debe existir
+    exists = systemd_service_exists(service_name)
+    checks["service_exists"] = exists
+
+    if exists:
+        return {
+            "success": False,
+            "message": f"El servicio {service_name} ya existe en systemd.",
+            "checks": checks,
+        }
+
+    # 3. Puertos disponibles
+    checks["main_port_available"] = is_port_available(payload.main_port)
+    checks["longpolling_port_available"] = is_port_available(payload.longpolling_port)
+
+    if not checks["main_port_available"] or not checks["longpolling_port_available"]:
+        return {
+            "success": False,
+            "message": "Uno o más puertos no están disponibles.",
+            "checks": checks,
+        }
+
+    # 4. Nginx, solo si se va a crear config nginx
+    if payload.create_nginx:
+        nginx_check = run_command_checked(["which", "nginx"])
+        checks["nginx_installed"] = nginx_check["success"]
+    else:
+        checks["nginx_installed"] = True
+
+    # 5. Certbot, solo si se va a crear SSL
+    if payload.create_ssl:
+        certbot_check = run_command_checked(["which", "certbot"])
+        checks["certbot_installed"] = certbot_check["success"]
+    else:
+        checks["certbot_installed"] = True
+
+    # 6. PostgreSQL
+    postgres_check = run_command_checked([
+        "sudo", "-u", "postgres",
+        "psql", "-Atc", "SELECT 1;"
+    ])
+    checks["postgres_ok"] = postgres_check["success"]
+
+    # 7. Versión Odoo informativa
+    checks["version_odoo"] = payload.version_odoo
+
+    failed_checks = [
+        key for key, value in checks.items()
+        if value is False
+    ]
+
+    if failed_checks:
+        return {
+            "success": False,
+            "message": "Fallaron algunas validaciones.",
+            "failed_checks": failed_checks,
+            "checks": checks,
+        }
+
+    return {
+        "success": True,
+        "message": "Servidor preparado correctamente para aprovisionamiento.",
+        "checks": checks,
+        "payload": payload.dict(),
     }
