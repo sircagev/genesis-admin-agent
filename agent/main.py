@@ -112,6 +112,28 @@ def get_token_header(x_admin_token: str = Header(..., alias="X-Admin-Token")):
     check_token(x_admin_token)
 
 
+def get_port_usage(port: int) -> dict:
+    if not port:
+        return {
+            "port": port,
+            "available": False,
+            "detail": "Puerto no definido",
+        }
+
+    check = run_command_checked(
+        ["bash", "-lc", f"ss -ltnp | grep ':{int(port)} ' || true"],
+        timeout=10,
+    )
+
+    output = check.get("output") or ""
+
+    return {
+        "port": int(port),
+        "available": output.strip() == "",
+        "detail": output.strip(),
+    }
+
+
 # ============================================================
 # Modelos
 # ============================================================
@@ -304,8 +326,13 @@ def provision_prepare(payload: ProvisionPrepareRequest):
         }
 
     # 3. Puertos disponibles
-    checks["main_port_available"] = is_port_available(payload.main_port)
-    checks["longpolling_port_available"] = is_port_available(payload.longpolling_port)
+    main_port_usage = get_port_usage(payload.main_port)
+    longpolling_port_usage = get_port_usage(payload.longpolling_port)
+
+    checks["main_port_available"] = main_port_usage["available"]
+    checks["longpolling_port_available"] = longpolling_port_usage["available"]
+    checks["main_port_usage"] = main_port_usage
+    checks["longpolling_port_usage"] = longpolling_port_usage
 
     if not checks["main_port_available"] or not checks["longpolling_port_available"]:
         return {
@@ -356,4 +383,29 @@ def provision_prepare(payload: ProvisionPrepareRequest):
         "message": "Servidor preparado correctamente para aprovisionamiento.",
         "checks": checks,
         "payload": payload.dict(),
+    }
+
+
+@app.get("/provision/suggest-ports", dependencies=[Depends(get_token_header)])
+def provision_suggest_ports(
+    start: int = Query(8071, ge=1, le=65535),
+    end: int = Query(8999, ge=1, le=65535),
+):
+    port = start
+
+    while port + 1 <= end:
+        if is_port_available(port) and is_port_available(port + 1):
+            return {
+                "success": True,
+                "main_port": port,
+                "longpolling_port": port + 1,
+            }
+
+        port += 2
+
+    return {
+        "success": False,
+        "message": "No se encontró un par de puertos disponible.",
+        "start": start,
+        "end": end,
     }
