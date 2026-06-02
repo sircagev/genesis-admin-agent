@@ -316,7 +316,7 @@ def provision_prepare(payload: ProvisionPrepareRequest):
 
     # 2. Servicio systemd no debe existir
     exists = systemd_service_exists(service_name)
-    checks["service_exists"] = exists
+    checks["service_not_exists"] = not exists
 
     if exists:
         return {
@@ -365,9 +365,18 @@ def provision_prepare(payload: ProvisionPrepareRequest):
     # 7. Versión Odoo informativa
     checks["version_odoo"] = payload.version_odoo
 
+    required_true_checks = [
+        "service_not_exists",
+        "main_port_available",
+        "longpolling_port_available",
+        "nginx_installed",
+        "certbot_installed",
+        "postgres_ok",
+    ]
+
     failed_checks = [
-        key for key, value in checks.items()
-        if value is False
+        key for key in required_true_checks
+        if checks.get(key) is not True
     ]
 
     if failed_checks:
@@ -377,13 +386,6 @@ def provision_prepare(payload: ProvisionPrepareRequest):
             "failed_checks": failed_checks,
             "checks": checks,
         }
-
-    return {
-        "success": True,
-        "message": "Servidor preparado correctamente para aprovisionamiento.",
-        "checks": checks,
-        "payload": payload.dict(),
-    }
 
 
 @app.get("/provision/suggest-ports", dependencies=[Depends(get_token_header)])
