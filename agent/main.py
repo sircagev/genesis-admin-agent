@@ -334,13 +334,6 @@ def provision_prepare(payload: ProvisionPrepareRequest):
     checks["main_port_usage"] = main_port_usage
     checks["longpolling_port_usage"] = longpolling_port_usage
 
-    if not checks["main_port_available"] or not checks["longpolling_port_available"]:
-        return {
-            "success": False,
-            "message": "Uno o más puertos no están disponibles.",
-            "checks": checks,
-        }
-
     # 4. Nginx, solo si se va a crear config nginx
     if payload.create_nginx:
         nginx_check = run_command_checked(["which", "nginx"])
@@ -366,6 +359,7 @@ def provision_prepare(payload: ProvisionPrepareRequest):
     checks["version_odoo"] = payload.version_odoo
 
     required_true_checks = [
+        "service_name_allowed",
         "service_not_exists",
         "main_port_available",
         "longpolling_port_available",
@@ -386,6 +380,13 @@ def provision_prepare(payload: ProvisionPrepareRequest):
             "failed_checks": failed_checks,
             "checks": checks,
         }
+        
+    return {
+        "success": True,
+        "message": "Servidor preparado correctamente para aprovisionamiento.",
+        "checks": checks,
+        "payload": payload.dict(),
+    }
 
 
 @app.get("/provision/suggest-ports", dependencies=[Depends(get_token_header)])
