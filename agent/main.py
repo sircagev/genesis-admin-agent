@@ -331,13 +331,31 @@ def list_modules(service: str, db: str):
 @app.post("/service/{service}/git/pull", dependencies=[Depends(get_token_header)])
 def git_pull(service: str):
 
-    # Extraer owner desde el nombre del servicio
-    try:
-        owner = service.replace("odoo-server-", "")
-    except:
+    if not service.startswith("odoo-server-"):
         raise HTTPException(status_code=400, detail="Formato de servicio inválido")
 
+    owner = service.replace("odoo-server-", "", 1)
+
     repo_path = f"/opt/{owner}/odoo-server/modulosFE17"
+    
+    # Marcar el repo como seguro para Git antes del pull
+    safe_dirs = run_command([
+        "git",
+        "config",
+        "--global",
+        "--get-all",
+        "safe.directory",
+    ])
+    
+    if repo_path not in safe_dirs.splitlines():
+        run_command([
+            "git",
+            "config",
+            "--global",
+            "--add",
+            "safe.directory",
+            repo_path,
+        ])
 
     output = run_command(["git", "-C", repo_path, "pull"])
 
